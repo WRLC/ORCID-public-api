@@ -1,0 +1,4 @@
+node_modules
+# ignore output files
+out*.json
+out*.csv

@@ -1,0 +1,200 @@
+#!/usr/bin/env node
+/*
+ * facultyIDs.js -  Node js application to query the ORCID public API
+ *                  and select IDs that look like org's Faculty members
+ *
+ *  example of Node API client, with callbacks instead of synchronous function returns
+ *
+ *  Usage: facultyIDs [options]
+ *  Options:
+ *  -o, --orgid <orgid>    The Ringgold ID of the organization to search for
+ *  -f, --format [format]  Output format, specify JSON or CSV, default=JSON
+ *  -h, --help             output usage information
+ *
+ *  Issues: Doesn't resolve duplicates (i.e. someone with more than 1 affiliation)
+ *          Uses end-date to see if affiliation is current -- not always there
+ *          Can't distinguish between faculty and staff
+ *          Takes ~75sec to run, probably not good for a web request
+ */
+var req = require('request');
+var cli = require('commander');
+//var debug = true;
+var debug = false;
+
+cli .option('-o, --orgid <orgid>', 'The Ringgold ID of the organization to search for')
+    .option('-f, --format [format]', 'Output format, specify JSON or CSV, default=JSON')
+    .parse(process.argv);
+
+// 'https://pub.orcid.org/v2.0/search/?q=ringgold-org-id:8363';
+if (typeof cli.orgid === 'undefined') {
+    console.error( '[main] arg error: Ringgold organization ID is required' );
+    process.exit( 1 );
+}
+var ringgoldID = cli.orgid;
+
+if (cli.format) {
+    if (cli.format != 'JSON' && cli.format != 'CSV') {
+        console.error( '[main] arg error: Unrecognized format %s', cli.format );
+        process.exit( 1 );
+    } else if (cli.format == 'CSV') {
+        console.error( '[main] arg error: CSV format is not yet implemented' );
+        process.exit( 1 );
+    }
+}
+
+var orcidURL = 'https://pub.orcid.org/v2.0/';
+var headers = { 'Accept': 'application/vnd.orcid+json' };
+var search = '/search/';
+var query = {   'q': 'ringgold-org-id:'+ringgoldID,
+                'start': 0,
+                'rows': 100
+};
+var restcall= { baseUrl:    orcidURL,
+                url:        search,
+                qs:         query,
+                headers:    headers,
+                json:       true        // this will de-serialize the body
+};
+
+/*
+ * search ORCID registry for org affiliates . . .
+ */
+var affiliates = [];
+var faculty = [];
+var next = 1;
+getAffiliates( restcall, getFaculty );
+/*
+ * . . . done
+ */
+
+// query API for all IDs with org affiliation (may be employment or education)
+function getAffiliates( options, callback ) {
+    req.get( options, function(error, resp, body) {
+        if (error) {
+            callback( '[getAffiliates] req error: ' + error, rtnFaculty );
+        } else if (resp) {
+            if (resp.statusCode != 200) {
+                callback( '[getAffiliates] bad status: ' + resp.statusCode, rtnFaculty );
+            } else {
+                body.result.forEach( function(orcid) {
+                    // [ { 'orcid-identifier': [Object-uri-path-host] },...
+                    affiliates.push(orcid['orcid-identifier']['path']);
+                    //console.log(next + ': ' + orcid['orcid-identifier']['path']);
+                    next++;
+                } );
+                if (debug)
+                    console.error('DEBUG: Processed '+next+' of '+body['num-found']);
+                if (next < body['num-found']) {
+                    query['start'] = next;
+                    getAffiliates( restcall, callback );
+                } else {
+                    // we're done ... callback will filter list to get faculty
+                    callback( null, rtnFaculty );
+                }
+            }
+        } else {
+            callback('[getAffiliates] null response error:', rtnFaculty);
+        }
+    } );
+}
+
+// filter IDs to identify faculty
+function getFaculty( error, callback ) {
+    if (error) {
+        callback( error );
+    } else {
+        // clear search query
+        restcall['qs'] = null;
+        // loop thru affiliations and select employment affiliates
+        facultyLoop( error, callback );
+    }
+}
+
+// need to loop thru IDs by recursion since request.get is asynchronous
+function facultyLoop( error, callback ) {
+    if (error) {
+        callback( error );
+    } else {
+        if (affiliates.length) {
+            var orcid = affiliates.pop();
+            if (debug)
+                console.error('DEBUG: popped '+orcid+' (#'+affiliates.length+')');
+            restcall['url'] = '/' + orcid + '/record';
+            req.get( restcall, function(error, resp, body) {
+                if (error) {
+                    callback( '[facultyLoop] req error: ' + error );
+                } else if (resp) {
+                    if (resp.statusCode != 200) {
+                        callback( '[facultyLoop] bad status: ' + resp.statusCode );
+                    } else {
+                        var employments = body  ["activities-summary"]
+                                                ["employments"]
+                                                ["employment-summary"];
+                        if (employments) {
+                            employments.forEach( function(org) {
+                                if (isFaculty( org )) {
+                                    var name1 = body.person.name["given-names"];
+                                    var name2 = body.person.name["family-name"];
+                                    var name = name1.value + ' ' + name2.value;
+                                    var email = 'private';
+                                    if (body.person.emails.email.length) {
+                                        email = body.person.emails.email[0].email;
+                                    }
+
+                                    var facobj = {
+                                        'orcid':    orcid,
+                                        'name':     name,
+                                        'email':    email,
+                                        'orgname':  org.organization.name,
+                                        'depname':  org['department-name'],
+                                        'title':    org['role-title'],
+                                    }
+
+                                    faculty.push( facobj );
+                                    if (debug)
+                                        console.error('DEBUG: pushed '+orcid);
+                                }
+                            } );
+                        }
+                        // recursive call to continue loop thru facutly[]
+                        facultyLoop( null, callback );
+                    }
+                } else {
+                    callback('[facultyLoop] null response error:');
+                }
+            } );
+        } else {
+            // we're done . . .
+            callback(null);
+        }
+    }
+}
+
+// final callback -- return the response
+function rtnFaculty( error ) {
+    if (error) {
+        console.error( error );
+        process.exit( 1 );
+    }
+    if (cli.format == 'CSV') {
+        // TBD: use the json2csv package
+        //faculty.forEach( function(obj) {
+        //    console.log( JSON.stringify(obj, null, 2) );
+        //} );
+    } else {
+        console.log( JSON.stringify(faculty, null, 2) );
+    }
+}
+
+// criteria for determining whether an affiliate is faculty
+function isFaculty( org ) {
+    if (org.organization["disambiguated-organization"] &&
+        org.organization["disambiguated-organization"]  // affiliated with org and
+                        ["disambiguated-organization-identifier"] == ringgoldID &&
+        org['end-date'] === null)                       // no end-date specified
+    {
+        return true;
+    } else {
+        return false;
+    }
+}
