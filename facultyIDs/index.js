@@ -14,12 +14,14 @@
  *  Issues: Doesn't resolve duplicates (i.e. someone with more than 1 affiliation)
  *          Uses end-date to see if affiliation is current -- not always there
  *          Can't distinguish between faculty and staff
- *          Takes ~75sec to run, probably not good for a web request
+ *          Takes ~75sec to run, so implemented as a CLI script rather than web server
  */
 //var debug = true;     // will output debug logging to console.error
 var debug = false;
 
+// request module provides the HTTP/S GET & POST, etc
 var req = require('request');
+// commander module provides command line interface stuff
 var cli = require('commander');
 
 // parse command line arguments
@@ -33,13 +35,15 @@ if (typeof cli.orgid === 'undefined') {
     process.exit( 1 );
 }
 var ringgoldID = cli.orgid;
+var csvFormat = false;
 if (cli.format) {
     if (cli.format != 'JSON' && cli.format != 'CSV') {
         console.error( '[main] arg error: Unrecognized format %s', cli.format );
         process.exit( 1 );
     } else if (cli.format == 'CSV') {
-        console.error( '[main] arg error: CSV format is not yet implemented' );
-        process.exit( 1 );
+        csvFormat = true;
+        var json2csv = require('json2csv');
+        var fields = ["orcid", "name", "email", "orgname", "depname", "title"];
     }
 }
 var progress = (cli.quiet ? false : true);
@@ -172,6 +176,7 @@ function facultyLoop( error, callback ) {
                                     if (debug)
                                         console.error('DEBUG: pushed '+orcid);
                                     if (progress) {
+                                        // figure out how much we've done
                                         var ratio = acount / (acount + affiliates.length);
                                         bar.update(ratio);
                                     }
@@ -201,11 +206,8 @@ function rtnFaculty( error ) {
         console.error( error );
         process.exit( 1 );
     }
-    if (cli.format == 'CSV') {
-        // TBD: use the json2csv package
-        //faculty.forEach( function(obj) {
-        //    console.log( JSON.stringify(obj, null, 2) );
-        //} );
+    if (csvFormat) {
+        console.log( json2csv({ data: faculty, fields: fields }) );
     } else {
         console.log( JSON.stringify(faculty, null, 2) );
     }

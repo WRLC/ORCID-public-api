@@ -15,6 +15,7 @@
   "homepage": "https://github.com/WRLC/ORCID-public-api#readme",
   "dependencies": {
     "commander": "^2.11.0",
+    "json2csv": "^3.11.2",
     "progress": "^2.0.0",
     "request": "^2.83.0"
   }
