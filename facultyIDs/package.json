@@ -2,17 +2,20 @@
   "name": "orcid-public-api",
   "version": "1.0.0",
   "description": "Clients using the ORCID public API",
+  "main": "index.js",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/WRLC/ORCID-public-api.git"
   },
   "author": "WRLC",
+  "license": "ISC",
   "bugs": {
     "url": "https://github.com/WRLC/ORCID-public-api/issues"
   },
   "homepage": "https://github.com/WRLC/ORCID-public-api#readme",
   "dependencies": {
     "commander": "^2.11.0",
+    "progress": "^2.0.0",
     "request": "^2.83.0"
   }
 }

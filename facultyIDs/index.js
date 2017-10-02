@@ -1,37 +1,38 @@
 #!/usr/bin/env node
 /*
- * facultyIDs.js -  Node js application to query the ORCID public API
- *                  and select IDs that look like org's Faculty members
+ * facultyIDs - Node js application to query the ORCID public API
+ *              and select IDs that look like ORG's Faculty members
  *
  *  example of Node API client, with callbacks instead of synchronous function returns
  *
- *  Usage: facultyIDs [options]
+ *  Usage: index.js [options]
  *  Options:
- *  -o, --orgid <orgid>    The Ringgold ID of the organization to search for
- *  -f, --format [format]  Output format, specify JSON or CSV, default=JSON
- *  -h, --help             output usage information
+ *      -o, --orgid <orgid>    The Ringgold ID of the organization to search for
+ *      -f, --format [format]  Output format, specify JSON or CSV, default=JSON
+ *      -h, --help             output usage information
  *
  *  Issues: Doesn't resolve duplicates (i.e. someone with more than 1 affiliation)
  *          Uses end-date to see if affiliation is current -- not always there
  *          Can't distinguish between faculty and staff
  *          Takes ~75sec to run, probably not good for a web request
  */
-var req = require('request');
-var cli = require('commander');
-//var debug = true;
+//var debug = true;     // will output debug logging to console.error
 var debug = false;
 
+var req = require('request');
+var cli = require('commander');
+
+// parse command line arguments
 cli .option('-o, --orgid <orgid>', 'The Ringgold ID of the organization to search for')
     .option('-f, --format [format]', 'Output format, specify JSON or CSV, default=JSON')
+    .option('-q, --quiet', 'Do not display the progress bar (e.g. for cron or bg)')
     .parse(process.argv);
 
-// 'https://pub.orcid.org/v2.0/search/?q=ringgold-org-id:8363';
 if (typeof cli.orgid === 'undefined') {
     console.error( '[main] arg error: Ringgold organization ID is required' );
     process.exit( 1 );
 }
 var ringgoldID = cli.orgid;
-
 if (cli.format) {
     if (cli.format != 'JSON' && cli.format != 'CSV') {
         console.error( '[main] arg error: Unrecognized format %s', cli.format );
@@ -41,7 +42,22 @@ if (cli.format) {
         process.exit( 1 );
     }
 }
+var progress = (cli.quiet ? false : true);
+if (progress) {
+    var ProgressBar = require('progress');
+    var barOpts = {
+        width: 50,
+        total: 50,
+        complete: '=',
+        incomplete: ' '
+    };
+    var bar = new ProgressBar('  progress [:bar] :percent', barOpts);
+}
 
+/*
+ * ORCID public API search endpoint
+ *  e.g. https://pub.orcid.org/v2.0/search/?q=ringgold-org-id:8363
+ */
 var orcidURL = 'https://pub.orcid.org/v2.0/';
 var headers = { 'Accept': 'application/vnd.orcid+json' };
 var search = '/search/';
@@ -57,9 +73,10 @@ var restcall= { baseUrl:    orcidURL,
 };
 
 /*
- * search ORCID registry for org affiliates . . .
+ * search ORCID registry for ORG affiliates . . .
  */
 var affiliates = [];
+var acount = 0;
 var faculty = [];
 var next = 1;
 getAffiliates( restcall, getFaculty );
@@ -67,7 +84,7 @@ getAffiliates( restcall, getFaculty );
  * . . . done
  */
 
-// query API for all IDs with org affiliation (may be employment or education)
+// query API for all IDs with ORG affiliation (may be employment or education)
 function getAffiliates( options, callback ) {
     req.get( options, function(error, resp, body) {
         if (error) {
@@ -117,6 +134,7 @@ function facultyLoop( error, callback ) {
     } else {
         if (affiliates.length) {
             var orcid = affiliates.pop();
+            acount++;
             if (debug)
                 console.error('DEBUG: popped '+orcid+' (#'+affiliates.length+')');
             restcall['url'] = '/' + orcid + '/record';
@@ -153,10 +171,14 @@ function facultyLoop( error, callback ) {
                                     faculty.push( facobj );
                                     if (debug)
                                         console.error('DEBUG: pushed '+orcid);
+                                    if (progress) {
+                                        var ratio = acount / (acount + affiliates.length);
+                                        bar.update(ratio);
+                                    }
                                 }
                             } );
                         }
-                        // recursive call to continue loop thru facutly[]
+                        // recursive call to continue loop thru faculty[]
                         facultyLoop( null, callback );
                     }
                 } else {
@@ -172,6 +194,9 @@ function facultyLoop( error, callback ) {
 
 // final callback -- return the response
 function rtnFaculty( error ) {
+    if (progress) {
+        bar.terminate();
+    }
     if (error) {
         console.error( error );
         process.exit( 1 );
