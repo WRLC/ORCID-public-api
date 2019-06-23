@@ -157,19 +157,25 @@ function facultyLoop( error, callback ) {
                                 if (isFaculty( org )) {
                                     var name1 = body.person.name["given-names"];
                                     var name2 = body.person.name["family-name"];
-                                    var name = name1.value + ' ' + name2.value;
+                                    var name = ((name1===null) ? '' : name1.value)
+                                            + ' '
+                                            + ((name2===null) ? '' : name2.value);
                                     var email = 'private';
                                     if (body.person.emails.email.length) {
                                         email = body.person.emails.email[0].email;
                                     }
+                                    var dept  = (org['department-name']===null) ? ''
+                                                : org['departnement-name'];
+                                    var title = (org['role-title']===null) ? ''
+                                                : org['role-title'];
 
                                     var facobj = {
                                         'orcid':    orcid,
                                         'name':     name,
                                         'email':    email,
                                         'orgname':  org.organization.name,
-                                        'depname':  org['department-name'],
-                                        'title':    org['role-title'],
+                                        'depname':  dept,
+                                        'title':    title,
                                     }
 
                                     faculty.push( facobj );
