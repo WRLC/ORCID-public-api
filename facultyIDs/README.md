@@ -27,6 +27,12 @@ Go to the `facultyIDs` directory and install the dependencies:
 
     npm install
 
+To upgrade dependencies (eg. when Github reports potential security vulnerabilities in your dependencies) use:
+
+    npm update
+
+to create new package files. See https://flaviocopes.com/update-npm-dependencies/ for more information and npm commands.
+
 ## Usage
 
     ./index.js [options]
