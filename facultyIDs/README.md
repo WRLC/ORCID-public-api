@@ -9,14 +9,11 @@ This client is written in JavaScript. It requires **Node.js** (4.x or greater) a
     sudo apt-get install npm
     sudo apt-get install nodejs-legacy
 
-**Note:** The `nodejs-legacy` package simply links the `nodejs` command to `node` so the shebang in the `index.js` script works on Debian platforms.
+**Note:** The `nodejs-legacy` package simply links the `nodejs` command to `node` so the shebang in the `index.js` script works on Debian platforms. (Not sure this is necessary on Ubuntu 18+)
 
-**Note:** The Ubuntu 14 `nodejs` package is currently at v0.10.25. To get the required LTS, the 4.x or 6.x branch, you can add a PPA (personal package archive), for example:
+**Note:** To get a newer version of node or resolve dependency problems, you can [install nodejs using a PPA](https://www.digitalocean.com/community/tutorials/how-to-install-node-js-on-ubuntu-18-04#installing-using-a-ppa) (personal package archive). 
 
-    curl -sL https://deb.nodesource.com/setup_4.x | sudo -E bash -
-    sudo apt-get install nodejs
-
-This installs both `nodejs` and `npm` (but not `nodejs-legacy`). For more information and options for Ubuntu 14 see [How To Install Node.js on an Ubuntu 14.04 server](https://www.digitalocean.com/community/tutorials/how-to-install-node-js-on-an-ubuntu-14-04-server).
+This installs both `nodejs` and `npm`.
 
 ## Installation
 Check out the ORCID-public-api repository:
