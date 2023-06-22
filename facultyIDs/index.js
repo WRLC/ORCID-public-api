@@ -141,6 +141,8 @@ function facultyLoop( error, callback ) {
             acount++;
             if (debug)
                 console.error('DEBUG: popped '+orcid+' (#'+affiliates.length+')');
+            // ORCID public API record detail endpoint
+            //  e.g. https://pub.orcid.org/v2.0/0000-0001-6644-5799/record
             restcall['url'] = '/' + orcid + '/record';
             req.get( restcall, function(error, resp, body) {
                 if (error) {
@@ -155,11 +157,14 @@ function facultyLoop( error, callback ) {
                         if (employments) {
                             employments.forEach( function(org) {
                                 if (isFaculty( org )) {
-                                    var name1 = body.person.name["given-names"];
-                                    var name2 = body.person.name["family-name"];
-                                    var name = ((name1===null) ? '' : name1.value)
-                                            + ' '
-                                            + ((name2===null) ? '' : name2.value);
+                                    var name = 'private';
+                                    if (body.person.name) {
+                                        var name1 = body.person.name["given-names"];
+                                        var name2 = body.person.name["family-name"];
+                                        name = ((name1===null) ? '' : name1.value)
+                                                + ' '
+                                                + ((name2===null) ? '' : name2.value);
+                                    }
                                     var email = 'private';
                                     if (body.person.emails.email.length) {
                                         email = body.person.emails.email[0].email;
